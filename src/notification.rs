@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -354,7 +355,7 @@ impl Notification for DidDeleteFiles {
 mod test {
     use super::*;
 
-    fn fake_call<N>()
+    const fn fake_call<N>()
     where
         N: Notification,
         N::Params: serde::Serialize,
@@ -398,5 +399,5 @@ mod test {
 
     #[test]
     #[cfg(feature = "proposed")]
-    fn check_proposed_macro_definitions() {}
+    const fn check_proposed_macro_definitions() {}
 }
