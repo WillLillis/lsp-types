@@ -3,6 +3,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::{LSPObject, Uri};
 
+#[allow(clippy::wildcard_imports)]
 pub use notification_params::*;
 
 /// A notebook document.
@@ -246,6 +247,7 @@ mod notification_params {
         VersionedTextDocumentIdentifier,
     };
 
+    #[allow(clippy::wildcard_imports)]
     use super::*;
 
     /// The params sent in an open notebook document notification.

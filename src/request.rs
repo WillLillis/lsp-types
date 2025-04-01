@@ -1,3 +1,4 @@
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -271,7 +272,7 @@ impl Request for UnregisterCapability {
 }
 
 /// The Completion request is sent from the client to the server to compute completion items at a given cursor position.
-/// Completion items are presented in the IntelliSense user interface. If computing full completion items is expensive,
+/// Completion items are presented in the [`IntelliSense`] user interface. If computing full completion items is expensive,
 /// servers can additionally provide a handler for the completion item resolve request ('completionItem/resolve').
 /// This request is sent when a completion item is selected in the user interface. A typical use case is for example:
 /// the 'textDocument/completion' request doesn’t fill in the documentation property for returned completion items
@@ -280,6 +281,8 @@ impl Request for UnregisterCapability {
 /// documentation property filled in. The request can delay the computation of the detail and documentation properties.
 /// However, properties that are needed for the initial sorting and filtering, like sortText, filterText, insertText,
 /// and textEdit must be provided in the textDocument/completion request and must not be changed during resolve.
+///
+/// [`IntelliSense`]: https://code.visualstudio.com/docs/editing/intellisense
 #[derive(Debug)]
 pub enum Completion {}
 
@@ -391,7 +394,7 @@ impl Request for GotoImplementation {
 /// For programming languages this usually highlights all references to the symbol scoped to this file.
 /// However we kept 'textDocument/documentHighlight' and 'textDocument/references' separate requests since
 /// the first one is allowed to be more fuzzy.
-/// Symbol matches usually have a DocumentHighlightKind of Read or Write whereas fuzzy or textual matches
+/// Symbol matches usually have a `DocumentHighlightKind` of Read or Write whereas fuzzy or textual matches
 /// use Text as the kind.
 #[derive(Debug)]
 pub enum DocumentHighlightRequest {}
@@ -435,8 +438,8 @@ impl Request for WorkspaceSymbolResolve {
     const METHOD: &'static str = "workspaceSymbol/resolve";
 }
 
-/// The workspace/executeCommand request is sent from the client to the server to trigger command execution on the server.
-/// In most cases the server creates a WorkspaceEdit structure and applies the changes to the workspace using the request
+/// The `workspace/executeCommand` request is sent from the client to the server to trigger command execution on the server.
+/// In most cases the server creates a `WorkspaceEdit` structure and applies the changes to the workspace using the request
 /// workspace/applyEdit which is sent from the server to the client.
 #[derive(Debug)]
 pub enum ExecuteCommand {}
@@ -448,7 +451,7 @@ impl Request for ExecuteCommand {
 }
 
 /// The document will save request is sent from the client to the server before the document is
-/// actually saved. The request can return an array of TextEdits which will be applied to the text
+/// actually saved. The request can return an array of `TextEdits` which will be applied to the text
 /// document before it is saved. Please note that clients might drop results if computing the text
 /// edits took too long or if a server constantly fails on this request. This is done to keep the
 /// save fast and reliable.
@@ -474,15 +477,15 @@ impl Request for ApplyWorkspaceEdit {
 
 /// The workspace/configuration request is sent from the server to the client to fetch configuration settings
 /// from the client. The request can fetch several configuration settings in one roundtrip.
-/// The order of the returned configuration settings correspond to the order of the passed ConfigurationItems
+/// The order of the returned configuration settings correspond to the order of the passed `ConfigurationItem`s
 /// (e.g. the first item in the response is the result for the first configuration item in the params).
 ///
-/// A ConfigurationItem consists of the configuration section to ask for and an additional scope URI.
+/// A `ConfigurationItem` consists of the configuration section to ask for and an additional scope URI.
 /// The configuration section ask for is defined by the server and doesn’t necessarily need to correspond to
 /// the configuration store used be the client. So a server might ask for a configuration cpp.formatterOptions
 /// but the client stores the configuration in a XML store layout differently.
 /// It is up to the client to do the necessary conversion. If a scope URI is provided the client should return
-/// the setting scoped to the provided resource. If the client for example uses EditorConfig to manage its
+/// the setting scoped to the provided resource. If the client for example uses `EditorConfig` to manage its
 /// settings the configuration should be returned for the passed resource URI. If the client can’t provide a
 /// configuration setting for a given scope then null need to be present in the returned array.
 #[derive(Debug)]
@@ -785,7 +788,7 @@ impl Request for CodeLensRefresh {
     const METHOD: &'static str = "workspace/codeLens/refresh";
 }
 
-/// The will create files request is sent from the client to the server before files are actually created as long as the creation is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are created. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep creates fast and reliable.
+/// The will create files request is sent from the client to the server before files are actually created as long as the creation is triggered from within the client. The request can return a `WorkspaceEdit` which will be applied to workspace before the files are created. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep creates fast and reliable.
 pub enum WillCreateFiles {}
 
 impl Request for WillCreateFiles {
@@ -794,7 +797,7 @@ impl Request for WillCreateFiles {
     const METHOD: &'static str = "workspace/willCreateFiles";
 }
 
-/// The will rename files request is sent from the client to the server before files are actually renamed as long as the rename is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are renamed. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep renames fast and reliable.
+/// The will rename files request is sent from the client to the server before files are actually renamed as long as the rename is triggered from within the client. The request can return a `WorkspaceEdit` which will be applied to workspace before the files are renamed. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep renames fast and reliable.
 pub enum WillRenameFiles {}
 
 impl Request for WillRenameFiles {
@@ -803,7 +806,7 @@ impl Request for WillRenameFiles {
     const METHOD: &'static str = "workspace/willRenameFiles";
 }
 
-/// The will delete files request is sent from the client to the server before files are actually deleted as long as the deletion is triggered from within the client. The request can return a WorkspaceEdit which will be applied to workspace before the files are deleted. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep deletes fast and reliable.
+/// The will delete files request is sent from the client to the server before files are actually deleted as long as the deletion is triggered from within the client. The request can return a `WorkspaceEdit` which will be applied to workspace before the files are deleted. Please note that clients might drop results if computing the edit took too long or if a server constantly fails on this request. This is done to keep deletes fast and reliable.
 pub enum WillDeleteFiles {}
 
 impl Request for WillDeleteFiles {
@@ -972,7 +975,7 @@ impl Request for TypeHierarchySubtypes {
 mod test {
     use super::*;
 
-    fn fake_call<R>()
+    const fn fake_call<R>()
     where
         R: Request,
         R::Params: serde::Serialize,
@@ -989,6 +992,7 @@ mod test {
         };
     }
 
+    #[allow(clippy::cognitive_complexity)]
     #[test]
     fn check_macro_definitions() {
         check_macro!("initialize");
@@ -1064,5 +1068,5 @@ mod test {
 
     #[test]
     #[cfg(feature = "proposed")]
-    fn check_proposed_macro_definitions() {}
+    const fn check_proposed_macro_definitions() {}
 }

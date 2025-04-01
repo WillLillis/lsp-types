@@ -265,13 +265,13 @@ pub enum CompletionTextEdit {
 
 impl From<TextEdit> for CompletionTextEdit {
     fn from(edit: TextEdit) -> Self {
-        CompletionTextEdit::Edit(edit)
+        Self::Edit(edit)
     }
 }
 
 impl From<InsertReplaceEdit> for CompletionTextEdit {
     fn from(edit: InsertReplaceEdit) -> Self {
-        CompletionTextEdit::InsertAndReplace(edit)
+        Self::InsertAndReplace(edit)
     }
 }
 
@@ -331,7 +331,7 @@ pub struct CompletionOptionsCompletionItem {
     pub label_details_support: Option<bool>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CompletionRegistrationOptions {
     #[serde(flatten)]
     pub text_document_registration_options: TextDocumentRegistrationOptions,
@@ -340,7 +340,7 @@ pub struct CompletionRegistrationOptions {
     pub completion_options: CompletionOptions,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CompletionResponse {
     Array(Vec<CompletionItem>),
@@ -349,17 +349,17 @@ pub enum CompletionResponse {
 
 impl From<Vec<CompletionItem>> for CompletionResponse {
     fn from(items: Vec<CompletionItem>) -> Self {
-        CompletionResponse::Array(items)
+        Self::Array(items)
     }
 }
 
 impl From<CompletionList> for CompletionResponse {
     fn from(list: CompletionList) -> Self {
-        CompletionResponse::List(list)
+        Self::List(list)
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionParams {
     // This field was "mixed-in" from TextDocumentPositionParams
@@ -377,7 +377,7 @@ pub struct CompletionParams {
     pub context: Option<CompletionContext>,
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionContext {
     /// How the completion was triggered.
@@ -403,7 +403,7 @@ impl CompletionTriggerKind {
 
 /// Represents a collection of [completion items](#CompletionItem) to be presented
 /// in the editor.
-#[derive(Debug, PartialEq, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionList {
     /// This list it not complete. Further typing should result in recomputing
@@ -414,7 +414,7 @@ pub struct CompletionList {
     pub items: Vec<CompletionItem>,
 }
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Default, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionItem {
     /// The label of this completion item. By default
@@ -497,7 +497,6 @@ pub struct CompletionItem {
     /// insertText is ignored.
     ///
     /// Most editors support two different operation when accepting a completion item. One is to insert a
-
     /// completion text and the other is to replace an existing text with a completion text. Since this can
     /// usually not predetermined by a server it can report both ranges. Clients need to signal support for
     /// `InsertReplaceEdits` via the `textDocument.completion.insertReplaceSupport` client capability
@@ -542,9 +541,10 @@ pub struct CompletionItem {
 }
 
 impl CompletionItem {
-    /// Create a CompletionItem with the minimum possible info (label and detail).
-    pub fn new_simple(label: String, detail: String) -> CompletionItem {
-        CompletionItem {
+    /// Create a `CompletionItem` with the minimum possible info (label and detail).
+    #[must_use]
+    pub fn new_simple(label: String, detail: String) -> Self {
+        Self {
             label,
             detail: Some(detail),
             ..Self::default()
@@ -555,7 +555,7 @@ impl CompletionItem {
 /// Additional details for a completion item label.
 ///
 /// @since 3.17.0
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Default, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionItemLabelDetails {
     /// An optional string which is rendered less prominently directly after
@@ -578,20 +578,26 @@ mod tests {
 
     #[test]
     fn test_tag_support_deserialization() {
-        let mut empty = CompletionItemCapability::default();
-        empty.tag_support = None;
+        let empty = CompletionItemCapability {
+            tag_support: None,
+            ..Default::default()
+        };
 
-        test_deserialization(r#"{}"#, &empty);
+        test_deserialization(r"{}", &empty);
         test_deserialization(r#"{"tagSupport": false}"#, &empty);
 
-        let mut t = CompletionItemCapability::default();
-        t.tag_support = Some(TagSupport { value_set: vec![] });
+        let t = CompletionItemCapability {
+            tag_support: Some(TagSupport { value_set: vec![] }),
+            ..Default::default()
+        };
         test_deserialization(r#"{"tagSupport": true}"#, &t);
 
-        let mut t = CompletionItemCapability::default();
-        t.tag_support = Some(TagSupport {
-            value_set: vec![CompletionItemTag::DEPRECATED],
-        });
+        let t = CompletionItemCapability {
+            tag_support: Some(TagSupport {
+                value_set: vec![CompletionItemTag::DEPRECATED],
+            }),
+            ..Default::default()
+        };
         test_deserialization(r#"{"tagSupport": {"valueSet": [1]}}"#, &t);
     }
 
