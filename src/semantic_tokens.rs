@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 
+use serde::de::{DeserializeSeed, Visitor};
 use serde::ser::SerializeSeq;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     PartialResultParams, Range, StaticRegistrationOptions, TextDocumentIdentifier,
@@ -161,6 +162,59 @@ pub struct SemanticToken {
     pub token_modifiers_bitset: u32,
 }
 
+// impl<'de> Deserialize<'de> for SemanticToken {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         struct SemanticTokenVisitor;
+//
+//         impl<'de> Visitor<'de> for SemanticTokenVisitor {
+//             type Value = SemanticToken;
+//
+//             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+//                 formatter.write_str("an array of exactly 5 u32 values")
+//             }
+//
+//             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+//             where
+//                 A: serde::de::SeqAccess<'de>,
+//             {
+//                 let delta_line = seq
+//                     .next_element()?
+//                     .ok_or_else(|| serde::de::Error::custom("expected delta_line"))?;
+//                 let delta_start = seq
+//                     .next_element()?
+//                     .ok_or_else(|| serde::de::Error::custom("expected delta_start"))?;
+//                 let length = seq
+//                     .next_element()?
+//                     .ok_or_else(|| serde::de::Error::custom("expected length"))?;
+//                 let token_type = seq
+//                     .next_element()?
+//                     .ok_or_else(|| serde::de::Error::custom("expected token_type"))?;
+//                 let token_modifiers_bitset = seq
+//                     .next_element()?
+//                     .ok_or_else(|| serde::de::Error::custom("expected token_modifiers_bitset"))?;
+//
+//                 // Ensure there are no extra elements
+//                 if seq.next_element::<u32>()?.is_some() {
+//                     return Err(serde::de::Error::custom("array has more than 5 elements"));
+//                 }
+//
+//                 Ok(SemanticToken {
+//                     delta_line,
+//                     delta_start,
+//                     length,
+//                     token_type,
+//                     token_modifiers_bitset,
+//                 })
+//             }
+//         }
+//
+//         deserializer.deserialize_seq(SemanticTokenVisitor)
+//     }
+// }
+
 impl SemanticToken {
     fn deserialize_tokens<'de, D>(deserializer: D) -> Result<Vec<Self>, D::Error>
     where
@@ -241,7 +295,6 @@ pub struct SemanticTokens {
     /// the client will include the result id in the next semantic token request.
     /// A server can then instead of computing all semantic tokens again simply
     /// send a delta.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub result_id: Option<String>,
 
     /// The actual tokens. For a detailed description about how the data is
@@ -265,7 +318,7 @@ pub struct SemanticTokensPartialResult {
     pub data: Vec<SemanticToken>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]
 pub enum SemanticTokensResult {
@@ -285,6 +338,74 @@ impl From<SemanticTokensPartialResult> for SemanticTokensResult {
     }
 }
 
+// Custom DeserializeSeed for Vec<SemanticToken>
+struct SemanticTokensDataDeserializer;
+
+impl<'de> DeserializeSeed<'de> for SemanticTokensDataDeserializer {
+    type Value = Vec<SemanticToken>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        SemanticToken::deserialize_tokens(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SemanticTokensResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SemanticTokensResultVisitor;
+
+        impl<'de> Visitor<'de> for SemanticTokensResultVisitor {
+            type Value = SemanticTokensResult;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an object with 'data' and optional 'resultId' fields")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut has_result_id = false;
+                let mut data: Option<Vec<SemanticToken>> = None;
+                let mut result_id: Option<String> = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "resultId" => {
+                            has_result_id = true;
+                            result_id = map.next_value()?;
+                        }
+                        "data" => {
+                            data = Some(map.next_value_seed(SemanticTokensDataDeserializer)?);
+                        }
+                        _ => {
+                            let _: serde::de::IgnoredAny = map.next_value()?;
+                        }
+                    }
+                }
+
+                let data = data.ok_or_else(|| serde::de::Error::missing_field("data"))?;
+
+                if has_result_id {
+                    Ok(SemanticTokensResult::Tokens(SemanticTokens {
+                        result_id,
+                        data,
+                    }))
+                } else {
+                    Ok(SemanticTokensResult::Partial(SemanticTokensPartialResult { data }))
+                }
+            }
+        }
+
+        deserializer.deserialize_map(SemanticTokensResultVisitor)
+    }
+}
+
 /// @since 3.16.0
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -294,7 +415,6 @@ pub struct SemanticTokensEdit {
 
     #[serde(
         default,
-        skip_serializing_if = "Option::is_none",
         deserialize_with = "SemanticToken::deserialize_tokens_opt",
         serialize_with = "SemanticToken::serialize_tokens_opt"
     )]
@@ -326,7 +446,6 @@ impl From<SemanticTokensDelta> for SemanticTokensFullDeltaResult {
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SemanticTokensDelta {
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub result_id: Option<String>,
     /// For a detailed description how these edits are structured please see
     /// <https://github.com/microsoft/vscode-extension-samples/blob/5ae1f7787122812dcc84e37427ca90af5ee09f14/semantic-tokens-sample/vscode.proposed.d.ts#L131>
@@ -558,13 +677,28 @@ mod tests {
     use crate::tests::{test_deserialization, test_serialization};
 
     #[test]
+    fn test_semantic_tokens_result_support_serialization() {
+        test_serialization(
+            &SemanticTokensResult::Tokens(SemanticTokens {
+                result_id: None,
+                data: vec![],
+            }),
+            r#"{"resultId":null,"data":[]}"#,
+        );
+        test_serialization(
+            &SemanticTokensResult::Partial(SemanticTokensPartialResult { data: vec![] }),
+            r#"{"data":[]}"#,
+        );
+    }
+
+    #[test]
     fn test_semantic_tokens_support_serialization() {
         test_serialization(
             &SemanticTokens {
                 result_id: None,
                 data: vec![],
             },
-            r#"{"data":[]}"#,
+            r#"{"resultId":null,"data":[]}"#,
         );
 
         test_serialization(
@@ -578,7 +712,7 @@ mod tests {
                     token_modifiers_bitset: 3,
                 }],
             },
-            r#"{"data":[2,5,3,0,3]}"#,
+            r#"{"resultId":null,"data":[2,5,3,0,3]}"#,
         );
 
         test_serialization(
@@ -601,7 +735,7 @@ mod tests {
                     },
                 ],
             },
-            r#"{"data":[2,5,3,0,3,0,5,4,1,0]}"#,
+            r#"{"resultId":null,"data":[2,5,3,0,3,0,5,4,1,0]}"#,
         );
     }
 
@@ -609,6 +743,11 @@ mod tests {
     fn test_semantic_tokens_support_deserialization() {
         test_deserialization(
             r#"{"data":[]}"#,
+            &SemanticTokensPartialResult { data: vec![] },
+        );
+
+        test_deserialization(
+            r#"{"resultId":null,"data":[]}"#,
             &SemanticTokens {
                 result_id: None,
                 data: vec![],
@@ -617,6 +756,19 @@ mod tests {
 
         test_deserialization(
             r#"{"data":[2,5,3,0,3]}"#,
+            &SemanticTokensPartialResult {
+                data: vec![SemanticToken {
+                    delta_line: 2,
+                    delta_start: 5,
+                    length: 3,
+                    token_type: 0,
+                    token_modifiers_bitset: 3,
+                }],
+            },
+        );
+
+        test_deserialization(
+            r#"{"resultId":null,"data":[2,5,3,0,3]}"#,
             &SemanticTokens {
                 result_id: None,
                 data: vec![SemanticToken {
@@ -631,6 +783,28 @@ mod tests {
 
         test_deserialization(
             r#"{"data":[2,5,3,0,3,0,5,4,1,0]}"#,
+            &SemanticTokensPartialResult {
+                data: vec![
+                    SemanticToken {
+                        delta_line: 2,
+                        delta_start: 5,
+                        length: 3,
+                        token_type: 0,
+                        token_modifiers_bitset: 3,
+                    },
+                    SemanticToken {
+                        delta_line: 0,
+                        delta_start: 5,
+                        length: 4,
+                        token_type: 1,
+                        token_modifiers_bitset: 0,
+                    },
+                ],
+            },
+        );
+
+        test_deserialization(
+            r#"{"resultId":null,"data":[2,5,3,0,3,0,5,4,1,0]}"#,
             &SemanticTokens {
                 result_id: None,
                 data: vec![
@@ -733,7 +907,7 @@ mod tests {
                 delete_count: 1,
                 data: None,
             },
-            r#"{"start":0,"deleteCount":1}"#,
+            r#"{"start":0,"deleteCount":1,"data":null}"#,
         );
     }
 }
