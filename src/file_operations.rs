@@ -146,6 +146,7 @@ pub struct FileOperationPattern {
     pub options: Option<FileOperationPatternOptions>,
 }
 
+// TODO: Check why `files` is `String` and not `Uri`
 /// The parameters sent in notifications/requests for user-initiated creation
 /// of files.
 ///
